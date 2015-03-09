@@ -968,6 +968,8 @@ func addpesymtable() {
 		Wputl(uint16(s.sect))
 		if s.typ != 0 {
 			Wputl(s.typ)
+		} else if Linkmode == LinkExternal {
+			Wputl(0)
 		} else {
 			Wputl(0x0308) // "array of structs"
 		}
