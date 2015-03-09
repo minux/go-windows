@@ -348,6 +348,8 @@ func pereloc1(r *ld.Reloc, sectoff int64) int {
 		return -1
 	}
 
+	//fmt.Printf("pereloc1 %x to %s type=%d, dynid=%d\n", sectoff, rs.Name, r.Type, rs.Dynid)
+
 	ld.Thearch.Lput(uint32(sectoff))
 	ld.Thearch.Lput(uint32(rs.Dynid))
 
@@ -364,7 +366,6 @@ func pereloc1(r *ld.Reloc, sectoff int64) int {
 	}
 
 	ld.Thearch.Wput(uint16(v))
-	fmt.Printf("%x: sectoff=%x, dynid=%x, type=%x\n", ld.Cpos()-10, sectoff, rs.Dynid, v)
 
 	return 0
 }
