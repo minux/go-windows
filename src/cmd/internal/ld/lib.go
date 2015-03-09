@@ -99,6 +99,7 @@ type Arch struct {
 	Elfsetupplt      func()
 	Gentext          func()
 	Machoreloc1      func(*Reloc, int64) int
+	PEreloc1         func(*Reloc, int64) int
 	Lput             func(uint32)
 	Wput             func(uint16)
 	Vput             func(uint64)

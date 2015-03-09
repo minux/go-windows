@@ -443,6 +443,8 @@ func relocsym(s *LSym) {
 					if rs.Type != SHOSTOBJ {
 						o += Symaddr(rs)
 					}
+				} else if HEADTYPE == Hwindows {
+					// nothing to do
 				} else {
 					Diag("unhandled pcrel relocation for %s", headstring)
 				}
@@ -584,7 +586,7 @@ func reloc() {
 }
 
 func dynrelocsym(s *LSym) {
-	if HEADTYPE == Hwindows {
+	if HEADTYPE == Hwindows && Linkmode != LinkExternal {
 		rel := Linklookup(Ctxt, ".rel", 0)
 		if s == rel {
 			return

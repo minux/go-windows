@@ -235,6 +235,11 @@ func adddynrel(s *ld.LSym, r *ld.Reloc) {
 			r.Type = 256 // ignore during relocsym
 			return
 		}
+
+		if ld.HEADTYPE == ld.Hwindows && s.Size == PtrSize {
+			// nothing unusual
+			return
+		}
 	}
 
 	ld.Ctxt.Cursym = s
@@ -329,6 +334,38 @@ func machoreloc1(r *ld.Reloc, sectoff int64) int {
 
 	ld.Thearch.Lput(uint32(sectoff))
 	ld.Thearch.Lput(v)
+	return 0
+}
+
+func pereloc1(r *ld.Reloc, sectoff int64) int {
+	var v uint32
+
+	rs := r.Xsym
+
+	if rs.Dynid < 0 {
+		ld.Diag("reloc %d to non-coff symbol %s type=%d", r.Type, rs.Name, rs.Type)
+		//ld.Diag("reloc %d to symbol %s as section not supported, type=%d", r.Type, rs.Name, rs.Type)
+		return -1
+	}
+
+	ld.Thearch.Lput(uint32(sectoff))
+	ld.Thearch.Lput(uint32(rs.Dynid))
+
+	switch r.Type {
+	default:
+		return -1
+
+	case ld.R_ADDR:
+		v = ld.IMAGE_REL_I386_DIR32
+
+	case ld.R_CALL,
+		ld.R_PCREL:
+		v = ld.IMAGE_REL_I386_REL32
+	}
+
+	ld.Thearch.Wput(uint16(v))
+	fmt.Printf("%x: sectoff=%x, dynid=%x, type=%x\n", ld.Cpos()-10, sectoff, rs.Dynid, v)
+
 	return 0
 }
 
