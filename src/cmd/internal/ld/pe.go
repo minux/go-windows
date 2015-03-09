@@ -1102,8 +1102,10 @@ func Asmbpe() {
 	oh.SizeOfInitializedData = d.SizeOfRawData
 	oh64.SizeOfUninitializedData = 0
 	oh.SizeOfUninitializedData = 0
-	oh64.AddressOfEntryPoint = uint32(Entryvalue() - PEBASE)
-	oh.AddressOfEntryPoint = uint32(Entryvalue() - PEBASE)
+	if Linkmode != LinkExternal {
+		oh64.AddressOfEntryPoint = uint32(Entryvalue() - PEBASE)
+		oh.AddressOfEntryPoint = uint32(Entryvalue() - PEBASE)
+	}
 	oh64.BaseOfCode = t.VirtualAddress
 	oh.BaseOfCode = t.VirtualAddress
 	oh64.ImageBase = PEBASE
