@@ -125,6 +125,7 @@ const (
 	IMAGE_SCN_MEM_READ                   = 0x40000000
 	IMAGE_SCN_MEM_WRITE                  = 0x80000000
 	IMAGE_SCN_MEM_DISCARDABLE            = 0x2000000
+	IMAGE_SCN_LNK_NRELOC_OVFL            = 0x1000000
 	IMAGE_DIRECTORY_ENTRY_EXPORT         = 0
 	IMAGE_DIRECTORY_ENTRY_IMPORT         = 1
 	IMAGE_DIRECTORY_ENTRY_RESOURCE       = 2
@@ -768,11 +769,11 @@ func addexports() {
 
 // perelocsect relocates symbols from first in section sect, and returns
 // the total number of relocation emitted.
-func perelocsect(sect *Section, first *LSym, total *uint16) {
+func perelocsect(sect *Section, first *LSym) int {
 	// If main section has no bits, nothing to relocate.
 	// Also nothing to relocate in ????
 	if sect.Vaddr >= sect.Seg.Vaddr+sect.Seg.Filelen {
-		return
+		return 0
 	}
 
 	relocs := 0
@@ -823,11 +824,7 @@ func perelocsect(sect *Section, first *LSym, total *uint16) {
 
 	sect.Rellen = uint64(Cpos()) - sect.Reloff
 
-	if int(*total)+relocs > 0xffff {
-		*total = 0xffff
-	} else {
-		*total += uint16(relocs)
-	}
+	return relocs
 }
 
 // peemitreloc emits relocation entries for go.o in external linking.
@@ -837,15 +834,44 @@ func peemitreloc(text, data *IMAGE_SECTION_HEADER) {
 	}
 
 	text.PointerToRelocations = uint32(Cpos())
-	perelocsect(Segtext.Sect, Ctxt.Textp, &text.NumberOfRelocations)
+	// first entry: extended relocs
+	Lputl(0) // placeholder for number of relocation + 1
+	Lputl(0)
+	Wputl(0)
+
+	n := perelocsect(Segtext.Sect, Ctxt.Textp) + 1
 	for sect := Segtext.Sect.Next; sect != nil; sect = sect.Next {
-		perelocsect(sect, datap, &text.NumberOfRelocations)
+		n += perelocsect(sect, datap)
 	}
 
-	data.PointerToRelocations = uint32(Cpos())
-	for sect := Segdata.Sect; sect != nil; sect = sect.Next {
-		perelocsect(sect, datap, &data.NumberOfRelocations)
+	cpos := Cpos()
+	Cseek(int64(text.PointerToRelocations))
+	Lputl(uint32(n))
+	Cseek(cpos)
+	if n > 0x10000 {
+		n = 0x10000
 	}
+	text.NumberOfRelocations = uint16(n - 1)
+
+	data.PointerToRelocations = uint32(cpos)
+	// first entry: extended relocs
+	Lputl(0) // placeholder for number of relocation + 1
+	Lputl(0)
+	Wputl(0)
+
+	n = 1
+	for sect := Segdata.Sect; sect != nil; sect = sect.Next {
+		n += perelocsect(sect, datap)
+	}
+
+	cpos = Cpos()
+	Cseek(int64(data.PointerToRelocations))
+	Lputl(uint32(n))
+	Cseek(cpos)
+	if n > 0x10000 {
+		n = 0x10000
+	}
+	data.NumberOfRelocations = uint16(n - 1)
 }
 
 func dope() {
@@ -1062,7 +1088,7 @@ func Asmbpe() {
 	}
 
 	t := addpesection(".text", int(Segtext.Length), int(Segtext.Length))
-	t.Characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
+	t.Characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ | IMAGE_SCN_LNK_NRELOC_OVFL
 	chksectseg(t, &Segtext)
 	textsect = pensect
 
@@ -1074,7 +1100,7 @@ func Asmbpe() {
 		datasect = pensect
 	} else {
 		d = addpesection(".data", int(Segdata.Filelen), int(Segdata.Filelen))
-		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_LNK_NRELOC_OVFL
 		chksectseg(d, &Segdata)
 		datasect = pensect
 
