@@ -564,6 +564,18 @@ func initdynimport() *Dll {
 	return dr
 }
 
+// peimporteddlls returns the gcc command line argument to link all imported
+// DLLs.
+func peimporteddlls() []string {
+	var dlls []string
+
+	for d := dr; d != nil; d = d.next {
+		dlls = append(dlls, "-l"+strings.TrimSuffix(d.name, ".dll"))
+	}
+
+	return dlls
+}
+
 func addimports(datsect *IMAGE_SECTION_HEADER) {
 	startoff := Cpos()
 	dynamic := Linklookup(Ctxt, ".windynamic", 0)

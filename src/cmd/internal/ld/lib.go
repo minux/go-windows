@@ -899,6 +899,9 @@ func hostlink() {
 			}
 		}
 	}
+	if HEADTYPE == Hwindows {
+		argv = append(argv, peimporteddlls()...)
+	}
 
 	if Debug['v'] != 0 {
 		fmt.Fprintf(&Bso, "host link:")
