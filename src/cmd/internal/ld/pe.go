@@ -126,6 +126,7 @@ const (
 	IMAGE_SCN_MEM_WRITE                  = 0x80000000
 	IMAGE_SCN_MEM_DISCARDABLE            = 0x2000000
 	IMAGE_SCN_LNK_NRELOC_OVFL            = 0x1000000
+	IMAGE_SCN_ALIGN_32BYTES              = 0x600000
 	IMAGE_DIRECTORY_ENTRY_EXPORT         = 0
 	IMAGE_DIRECTORY_ENTRY_IMPORT         = 1
 	IMAGE_DIRECTORY_ENTRY_RESOURCE       = 2
@@ -1115,12 +1116,12 @@ func Asmbpe() {
 		datasect = pensect
 	} else {
 		d = addpesection(".data", int(Segdata.Filelen), int(Segdata.Filelen))
-		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_LNK_NRELOC_OVFL
+		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_LNK_NRELOC_OVFL | IMAGE_SCN_ALIGN_32BYTES
 		chksectseg(d, &Segdata)
 		datasect = pensect
 
 		b := addpesection(".bss", int(Segdata.Length-Segdata.Filelen), 0)
-		b.Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+		b.Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_ALIGN_32BYTES
 		b.PointerToRawData = 0
 		bsssect = pensect
 	}
