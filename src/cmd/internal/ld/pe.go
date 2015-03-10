@@ -945,7 +945,7 @@ func addpesym(s *LSym, name string, type_ int, addr int64, size int64, ver int, 
 	}
 
 	if coffsym != nil {
-		if s.Type == SHOSTOBJ && s.Name == s.Extname {
+		if Linkmode == LinkExternal && (s.Type == SHOSTOBJ || s.Cgoexport != 0) && s.Name == s.Extname {
 			s.Name = "_" + s.Name
 		}
 		cs := &coffsym[ncoffsym]
