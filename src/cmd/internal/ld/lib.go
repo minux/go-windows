@@ -1469,6 +1469,13 @@ func genasmsym(put func(*LSym, string, int, int64, int64, int, *LSym)) {
 		case SFILE:
 			put(nil, s.Name, 'f', s.Value, 0, int(s.Version), nil)
 			continue
+
+		case SHOSTOBJ:
+			if HEADTYPE == Hwindows {
+				put(s, s.Name, 'U', s.Value, 0, int(s.Version), nil)
+			}
+			continue
+
 		}
 	}
 

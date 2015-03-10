@@ -526,13 +526,13 @@ func initdynimport() *Dll {
 			for m = d.ms; m != nil; m = m.next {
 				m.s.Type = SDATA // should be SNOPTRDATA, but 8l doesn't aceept SNOPTRDATA R_ADDR relocation
 				Symgrow(Ctxt, m.s, int64(Thearch.Ptrsize))
-				dynName := "_" + m.s.Extname
+				dynName := m.s.Extname
 				if m.argsize >= 0 {
 					dynName += fmt.Sprintf("@%d", m.argsize)
 				}
 				dynSym := Linklookup(Ctxt, dynName, 0)
 				dynSym.Reachable = true
-				dynSym.Type = SHOSTOBJ //SDYNIMPORT
+				dynSym.Type = SHOSTOBJ
 				r := Addrel(m.s)
 				r.Sym = dynSym
 				r.Off = 0
@@ -945,6 +945,9 @@ func addpesym(s *LSym, name string, type_ int, addr int64, size int64, ver int, 
 	}
 
 	if coffsym != nil {
+		if s.Type == SHOSTOBJ && s.Name == s.Extname {
+			s.Name = "_" + s.Name
+		}
 		cs := &coffsym[ncoffsym]
 		cs.sym = s
 		if len(s.Name) > 8 {
