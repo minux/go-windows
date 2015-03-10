@@ -344,11 +344,8 @@ func pereloc1(r *ld.Reloc, sectoff int64) int {
 
 	if rs.Dynid < 0 {
 		ld.Diag("reloc %d to non-coff symbol %s type=%d", r.Type, rs.Name, rs.Type)
-		//ld.Diag("reloc %d to symbol %s as section not supported, type=%d", r.Type, rs.Name, rs.Type)
 		return -1
 	}
-
-	//fmt.Printf("pereloc1 %x to %s type=%d, dynid=%d\n", sectoff, rs.Name, r.Type, rs.Dynid)
 
 	ld.Thearch.Lput(uint32(sectoff))
 	ld.Thearch.Lput(uint32(rs.Dynid))

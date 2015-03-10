@@ -529,13 +529,6 @@ func relocsym(s *LSym) {
 			o = Thearch.Archrelocvariant(r, s, o)
 		}
 
-		if !true { // minux debug
-			nam := "<NIL>"
-			if r.Sym != nil {
-				nam = r.Sym.Name
-			}
-			fmt.Printf("reloc %s+%d t=%d-> %s, o=%x\n", s.Name, off, r.Type, nam, o)
-		}
 		if false {
 			nam := "<nil>"
 			if r.Sym != nil {
