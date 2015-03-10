@@ -957,9 +957,15 @@ func addpesymtable() {
 		genasmsym(addpesym)
 	}
 	size := len(strtbl) + 4 + 18*ncoffsym
-	h := addpesection(".symtab", size, size)
-	h.Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_DISCARDABLE
-	chksectoff(h, Cpos())
+
+	var h *IMAGE_SECTION_HEADER
+	if Linkmode != LinkExternal {
+		// We do not really need .symtab for go.o, and if we have one, ld
+		// will also include it in the exe, and that will confuse windows.
+		h = addpesection(".symtab", size, size)
+		h.Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_DISCARDABLE
+		chksectoff(h, Cpos())
+	}
 	fh.PointerToSymbolTable = uint32(Cpos())
 	fh.NumberOfSymbols = uint32(ncoffsym)
 
@@ -993,7 +999,9 @@ func addpesymtable() {
 	for i := 0; i < len(strtbl); i++ {
 		Cput(uint8(strtbl[i]))
 	}
-	strnput("", int(h.SizeOfRawData-uint32(size)))
+	if Linkmode != LinkExternal {
+		strnput("", int(h.SizeOfRawData-uint32(size)))
+	}
 }
 
 func setpersrc(sym *LSym) {
