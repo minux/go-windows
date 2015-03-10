@@ -799,6 +799,13 @@ func hostlink() {
 	if HEADTYPE == Hopenbsd {
 		argv = append(argv, "-Wl,-nopie")
 	}
+	if HEADTYPE == Hwindows {
+		if headstring == "windowsgui" {
+			argv = append(argv, "-mwindows")
+		} else {
+			argv = append(argv, "-mconsole")
+		}
+	}
 
 	if Iself && AssumeGoldLinker != 0 /*TypeKind(100016)*/ {
 		argv = append(argv, "-Wl,--rosegment")
