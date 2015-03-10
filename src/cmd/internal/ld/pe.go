@@ -339,6 +339,8 @@ var textsect int
 
 var datasect int
 
+var bsssect int
+
 var fh IMAGE_FILE_HEADER
 
 var oh IMAGE_OPTIONAL_HEADER
@@ -466,7 +468,6 @@ func pewrite() {
 		binary.Write(&coutbuf, binary.LittleEndian, &oh)
 	}
 	binary.Write(&coutbuf, binary.LittleEndian, sh[:pensect])
-	fmt.Printf("%s: %#v\n%s: %#v\n", sh[0].Name, sh[0], sh[1].Name, sh[1]) // minux debug
 }
 
 func strput(s string) {
@@ -525,7 +526,7 @@ func initdynimport() *Dll {
 				m.s.Type = SDATA // should be SNOPTRDATA, but 8l doesn't aceept SNOPTRDATA R_ADDR relocation
 				Symgrow(Ctxt, m.s, int64(Thearch.Ptrsize))
 				dynName := "_" + m.s.Extname
-				if m.argsize > 0 {
+				if m.argsize >= 0 {
 					dynName += fmt.Sprintf("@%d", m.argsize)
 				}
 				dynSym := Linklookup(Ctxt, dynName, 0)
@@ -911,7 +912,16 @@ func addpesym(s *LSym, name string, type_ int, addr int64, size int64, ver int, 
 		if len(s.Name) > 8 {
 			cs.strtbloff = strtbladd(s.Name)
 		}
-		if uint64(s.Value) >= Segdata.Vaddr {
+		if uint64(s.Value) >= Segdata.Vaddr+Segdata.Filelen && Linkmode == LinkExternal {
+			// In COFF, bss symbols are normally handled the same as common symbols,
+			// but in Go object files, the runtime need precise layout of various
+			// data symbols (noptrdata, enoptrdata, data, edata, bss, ebss, noptrbss,
+			// enoptrbss). But we cannot perserve the order if we use common symbols,
+			// so we fake a .bss section with non-zero VirtualSize and zero SizeOfRawData
+			// and hope that GNU ld could handle it correctly.
+			cs.value = int64(uint64(s.Value) - Segdata.Vaddr - Segdata.Filelen)
+			cs.sect = bsssect
+		} else if uint64(s.Value) >= Segdata.Vaddr {
 			cs.value = int64(uint64(s.Value) - Segdata.Vaddr)
 			cs.sect = datasect
 		} else if uint64(s.Value) >= Segtext.Vaddr {
@@ -1048,10 +1058,23 @@ func Asmbpe() {
 	chksectseg(t, &Segtext)
 	textsect = pensect
 
-	d := addpesection(".data", int(Segdata.Length), int(Segdata.Filelen))
-	d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
-	chksectseg(d, &Segdata)
-	datasect = pensect
+	var d *IMAGE_SECTION_HEADER
+	if Linkmode != LinkExternal {
+		d = addpesection(".data", int(Segdata.Length), int(Segdata.Filelen))
+		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+		chksectseg(d, &Segdata)
+		datasect = pensect
+	} else {
+		d = addpesection(".data", int(Segdata.Filelen), int(Segdata.Filelen))
+		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+		chksectseg(d, &Segdata)
+		datasect = pensect
+
+		b := addpesection(".bss", int(Segdata.Length-Segdata.Filelen), 0)
+		b.Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE
+		b.PointerToRawData = 0
+		bsssect = pensect
+	}
 
 	if Debug['s'] == 0 {
 		dwarfaddpeheaders()
