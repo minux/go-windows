@@ -237,7 +237,7 @@ func adddynrel(s *ld.LSym, r *ld.Reloc) {
 		}
 
 		if ld.HEADTYPE == ld.Hwindows && s.Size == PtrSize {
-			// nothing unusual
+			// nothing to do, the relocation will be laid out in pereloc1
 			return
 		}
 	}

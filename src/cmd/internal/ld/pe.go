@@ -511,9 +511,16 @@ func initdynimport() *Dll {
 		// the %n suffix if any.
 		m.argsize = -1
 		if i := strings.IndexByte(s.Extname, '%'); i >= 0 {
-			m.argsize, _ = strconv.Atoi(s.Extname[i+1:])
+			var err error
+			m.argsize, err = strconv.Atoi(s.Extname[i+1:])
+			if err != nil {
+				Diag("failed to parse stdcall decoration: %v", err)
+			}
 			m.argsize *= Thearch.Ptrsize
 			s.Extname = s.Extname[:i]
+		}
+		if m.argsize < 0 {
+			Diag("undecorated stdcall import not allowed: %s", s.Extname)
 		}
 
 		m.s = s
@@ -525,7 +532,7 @@ func initdynimport() *Dll {
 		// Add real symbol name
 		for d := dr; d != nil; d = d.next {
 			for m = d.ms; m != nil; m = m.next {
-				m.s.Type = SDATA // should be SNOPTRDATA, but 8l doesn't aceept SNOPTRDATA R_ADDR relocation
+				m.s.Type = SDATA
 				Symgrow(Ctxt, m.s, int64(Thearch.Ptrsize))
 				dynName := m.s.Extname
 				if m.argsize >= 0 {
@@ -781,10 +788,9 @@ func addexports() {
 }
 
 // perelocsect relocates symbols from first in section sect, and returns
-// the total number of relocation emitted.
+// the total number of relocations emitted.
 func perelocsect(sect *Section, first *LSym) int {
 	// If main section has no bits, nothing to relocate.
-	// Also nothing to relocate in ????
 	if sect.Vaddr >= sect.Seg.Vaddr+sect.Seg.Filelen {
 		return 0
 	}
@@ -955,12 +961,6 @@ func addpesym(s *LSym, name string, type_ int, addr int64, size int64, ver int, 
 			cs.strtbloff = strtbladd(s.Name)
 		}
 		if uint64(s.Value) >= Segdata.Vaddr+Segdata.Filelen && Linkmode == LinkExternal {
-			// In COFF, bss symbols are normally handled the same as common symbols,
-			// but in Go object files, the runtime need precise layout of various
-			// data symbols (noptrdata, enoptrdata, data, edata, bss, ebss, noptrbss,
-			// enoptrbss). But we cannot perserve the order if we use common symbols,
-			// so we fake a .bss section with non-zero VirtualSize and zero SizeOfRawData
-			// and hope that GNU ld could handle it correctly.
 			cs.value = int64(uint64(s.Value) - Segdata.Vaddr - Segdata.Filelen)
 			cs.sect = bsssect
 		} else if uint64(s.Value) >= Segdata.Vaddr {
@@ -971,7 +971,7 @@ func addpesym(s *LSym, name string, type_ int, addr int64, size int64, ver int, 
 			cs.sect = textsect
 		} else if type_ == 'U' {
 			cs.value = 0
-			cs.typ = 32
+			cs.typ = IMAGE_SYM_DTYPE_FUNCTION
 		} else {
 			cs.value = 0
 			cs.sect = 0
