@@ -375,7 +375,7 @@ func (t *tester) extLink() bool {
 func (t *tester) cgoTest() error {
 	env := mergeEnvLists([]string{"GOTRACEBACK=2"}, os.Environ())
 
-	if t.gohostos == "windows" && t.gohostarch == "amd64" {
+	if t.gohostos == "windows" && t.gohostarch != "386" {
 		cmd := t.dirCmd("misc/cgo/test", "go", "test")
 		cmd.Env = env
 		return cmd.Run()
@@ -399,7 +399,8 @@ func (t *tester) cgoTest() error {
 		if err := cmd.Run(); err != nil {
 			return err
 		}
-	case "darwin-386", "darwin-amd64":
+	case "darwin-386", "darwin-amd64",
+		"windows-386":
 		if t.extLink() {
 			cmd := t.dirCmd("misc/cgo/test", "go", "test", "-ldflags", "-linkmode=external")
 			cmd.Env = env
@@ -411,8 +412,7 @@ func (t *tester) cgoTest() error {
 		"dragonfly-386", "dragonfly-amd64",
 		"freebsd-386", "freebsd-amd64", "freebsd-arm",
 		"linux-386", "linux-amd64", "linux-arm",
-		"netbsd-386", "netbsd-amd64",
-		"windows-386":
+		"netbsd-386", "netbsd-amd64":
 
 		cmd := t.dirCmd("misc/cgo/test", "go", "test", "-ldflags", "-linkmode=external")
 		cmd.Env = env
