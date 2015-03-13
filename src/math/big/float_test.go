@@ -90,15 +90,20 @@ func TestFloatZeroValue(t *testing.T) {
 
 func makeFloat(s string) *Float {
 	var x Float
-	if s == "Inf" || s == "+Inf" {
+
+	switch s {
+	case "0":
+		return &x
+	case "-0":
+		return x.Neg(&x)
+	case "Inf", "+Inf":
 		return x.SetInf(+1)
-	}
-	if s == "-Inf" {
+	case "-Inf":
 		return x.SetInf(-1)
-	}
-	if s == "NaN" || s == "-NaN" {
+	case "NaN", "-NaN":
 		return x.SetNaN()
 	}
+
 	x.SetPrec(1000)
 	if _, ok := x.SetString(s); !ok {
 		panic(fmt.Sprintf("%q is not a valid float", s))
@@ -145,13 +150,6 @@ func TestFloatSetPrec(t *testing.T) {
 		}
 		if got, acc := x.String(), x.Acc(); got != test.want || acc != test.acc {
 			t.Errorf("%s.SetPrec(%d) = %s (%s); want %s (%s)", test.x, test.prec, got, acc, test.want, test.acc)
-		}
-		// look inside x and check correct value for x.exp
-		if len(x.mant) == 0 {
-			// ±0, ±Inf, or NaN
-			if x.exp != 0 && x.exp > MinExp {
-				t.Errorf("%s.SetPrec(%d): incorrect exponent %d", test.x, test.prec, x.exp)
-			}
 		}
 	}
 }
@@ -209,7 +207,7 @@ func feq(x, y *Float) bool {
 	if x.IsNaN() || y.IsNaN() {
 		return x.IsNaN() && y.IsNaN()
 	}
-	return x.Cmp(y) == 0 && x.neg == y.neg
+	return x.Cmp(y) == 0 && x.IsNeg() == y.IsNeg()
 }
 
 func TestFloatMantExp(t *testing.T) {
@@ -261,11 +259,11 @@ func TestFloatSetMantExp(t *testing.T) {
 		{"Inf", 1234, "+Inf"},
 		{"+Inf", -1234, "+Inf"},
 		{"-Inf", -1234, "-Inf"},
-		{"0", -MaxExp - 1, "0"},
-		{"0.5", -MaxExp - 1, "+0"},  // exponent underflow
-		{"-0.5", -MaxExp - 1, "-0"}, // exponent underflow
-		{"1", MaxExp, "+Inf"},       // exponent overflow
-		{"2", MaxExp - 1, "+Inf"},   // exponent overflow
+		{"0", MinExp, "0"},
+		{"0.25", MinExp, "+0"},    // exponent underflow
+		{"-0.25", MinExp, "-0"},   // exponent underflow
+		{"1", MaxExp, "+Inf"},     // exponent overflow
+		{"2", MaxExp - 1, "+Inf"}, // exponent overflow
 		{"0.75", 1, "1.5"},
 		{"0.5", 11, "1024"},
 		{"-0.5", -2, "-0.125"},
@@ -1006,7 +1004,7 @@ var precList = [...]uint{1, 2, 5, 8, 10, 16, 23, 24, 32, 50, 53, 64, 100, 128, 5
 
 // Selected bits with which to run various tests.
 // Each entry is a list of bits representing a floating-point number (see fromBits).
-var bitsList = [...][]int{
+var bitsList = [...]Bits{
 	{},           // = 0
 	{0},          // = 1
 	{1},          // = 2
@@ -1026,23 +1024,23 @@ func TestFloatAdd(t *testing.T) {
 	for _, xbits := range bitsList {
 		for _, ybits := range bitsList {
 			// exact values
-			x := fromBits(xbits)
-			y := fromBits(ybits)
-			zbits := addBits(xbits, ybits)
-			z := fromBits(zbits)
+			x := xbits.Float()
+			y := ybits.Float()
+			zbits := xbits.add(ybits)
+			z := zbits.Float()
 
 			for i, mode := range [...]RoundingMode{ToZero, ToNearestEven, AwayFromZero} {
 				for _, prec := range precList {
 					got := new(Float).SetPrec(prec).SetMode(mode)
 					got.Add(x, y)
-					want := roundBits(zbits, prec, mode)
+					want := zbits.round(prec, mode)
 					if got.Cmp(want) != 0 {
 						t.Errorf("i = %d, prec = %d, %s:\n\t     %s %v\n\t+    %s %v\n\t=    %s\n\twant %s",
 							i, prec, mode, x, xbits, y, ybits, got, want)
 					}
 
 					got.Sub(z, x)
-					want = roundBits(ybits, prec, mode)
+					want = ybits.round(prec, mode)
 					if got.Cmp(want) != 0 {
 						t.Errorf("i = %d, prec = %d, %s:\n\t     %s %v\n\t-    %s %v\n\t=    %s\n\twant %s",
 							i, prec, mode, z, zbits, x, xbits, got, want)
@@ -1065,8 +1063,8 @@ func TestFloatAdd32(t *testing.T) {
 				x0, y0 = y0, x0
 			}
 
-			x := new(Float).SetFloat64(x0)
-			y := new(Float).SetFloat64(y0)
+			x := NewFloat(x0)
+			y := NewFloat(y0)
 			z := new(Float).SetPrec(24)
 
 			z.Add(x, y)
@@ -1098,8 +1096,8 @@ func TestFloatAdd64(t *testing.T) {
 				x0, y0 = y0, x0
 			}
 
-			x := new(Float).SetFloat64(x0)
-			y := new(Float).SetFloat64(y0)
+			x := NewFloat(x0)
+			y := NewFloat(y0)
 			z := new(Float).SetPrec(53)
 
 			z.Add(x, y)
@@ -1127,16 +1125,16 @@ func TestFloatMul(t *testing.T) {
 	for _, xbits := range bitsList {
 		for _, ybits := range bitsList {
 			// exact values
-			x := fromBits(xbits)
-			y := fromBits(ybits)
-			zbits := mulBits(xbits, ybits) // x * y
-			z := fromBits(zbits)
+			x := xbits.Float()
+			y := ybits.Float()
+			zbits := xbits.mul(ybits)
+			z := zbits.Float()
 
 			for i, mode := range [...]RoundingMode{ToZero, ToNearestEven, AwayFromZero} {
 				for _, prec := range precList {
 					got := new(Float).SetPrec(prec).SetMode(mode)
 					got.Mul(x, y)
-					want := roundBits(zbits, prec, mode)
+					want := zbits.round(prec, mode)
 					if got.Cmp(want) != 0 {
 						t.Errorf("i = %d, prec = %d, %s:\n\t     %s %v\n\t*    %s %v\n\t=    %s\n\twant %s",
 							i, prec, mode, x, xbits, y, ybits, got, want)
@@ -1146,7 +1144,7 @@ func TestFloatMul(t *testing.T) {
 						continue // ignore div-0 case (not invertable)
 					}
 					got.Quo(z, x)
-					want = roundBits(ybits, prec, mode)
+					want = ybits.round(prec, mode)
 					if got.Cmp(want) != 0 {
 						t.Errorf("i = %d, prec = %d, %s:\n\t     %s %v\n\t/    %s %v\n\t=    %s\n\twant %s",
 							i, prec, mode, z, zbits, x, xbits, got, want)
@@ -1184,8 +1182,8 @@ func TestFloatMul64(t *testing.T) {
 				x0, y0 = y0, x0
 			}
 
-			x := new(Float).SetFloat64(x0)
-			y := new(Float).SetFloat64(y0)
+			x := NewFloat(x0)
+			y := NewFloat(y0)
 			z := new(Float).SetPrec(53)
 
 			z.Mul(x, y)
@@ -1249,7 +1247,7 @@ func TestFloatQuo(t *testing.T) {
 
 	for i := 0; i < 8; i++ {
 		// compute accurate (not rounded) result z
-		bits := []int{preci - 1}
+		bits := Bits{preci - 1}
 		if i&3 != 0 {
 			bits = append(bits, 0)
 		}
@@ -1259,10 +1257,10 @@ func TestFloatQuo(t *testing.T) {
 		if i&1 != 0 {
 			bits = append(bits, -precf)
 		}
-		z := fromBits(bits)
+		z := bits.Float()
 
 		// compute accurate x as z*y
-		y := new(Float).SetFloat64(3.14159265358979323e123)
+		y := NewFloat(3.14159265358979323e123)
 
 		x := new(Float).SetPrec(z.Prec() + y.Prec()).SetMode(ToZero)
 		x.Mul(z, y)
@@ -1280,7 +1278,7 @@ func TestFloatQuo(t *testing.T) {
 			for d := -5; d < 5; d++ {
 				prec := uint(preci + d)
 				got := new(Float).SetPrec(prec).SetMode(mode).Quo(x, y)
-				want := roundBits(bits, prec, mode)
+				want := bits.round(prec, mode)
 				if got.Cmp(want) != 0 {
 					t.Errorf("i = %d, prec = %d, %s:\n\t     %s\n\t/    %s\n\t=    %s\n\twant %s",
 						i, prec, mode, x, y, got, want)
@@ -1331,10 +1329,9 @@ func TestFloatQuoSmoke(t *testing.T) {
 	}
 }
 
-// TestFloatArithmeticSpecialValues tests that Float operations produce
-// the correct result for all combinations of regular and special value
-// arguments (±0, ±Inf, NaN) and ±1 and ±2.71828 as representatives for
-// nonzero finite values.
+// TestFloatArithmeticSpecialValues tests that Float operations produce the
+// correct results for combinations of zero (±0), finite (±1 and ±2.71828),
+// and non-finite (±Inf, NaN) operands.
 func TestFloatArithmeticSpecialValues(t *testing.T) {
 	zero := 0.0
 	args := []float64{math.Inf(-1), -2.71828, -1, -zero, zero, 1, 2.71828, math.Inf(1), math.NaN()}
@@ -1444,6 +1441,39 @@ func TestFloatArithmeticRounding(t *testing.T) {
 	}
 }
 
-func TestFloatCmp(t *testing.T) {
-	// TODO(gri) implement this
+// TestFloatCmpSpecialValues tests that Cmp produces the correct results for
+// combinations of zero (±0), finite (±1 and ±2.71828), and non-finite (±Inf,
+// NaN) operands.
+func TestFloatCmpSpecialValues(t *testing.T) {
+	zero := 0.0
+	args := []float64{math.Inf(-1), -2.71828, -1, -zero, zero, 1, 2.71828, math.Inf(1), math.NaN()}
+	xx := new(Float)
+	yy := new(Float)
+	for i := 0; i < 4; i++ {
+		for _, x := range args {
+			xx.SetFloat64(x)
+			// check conversion is correct
+			// (no need to do this for y, since we see exactly the
+			// same values there)
+			if got, acc := xx.Float64(); !math.IsNaN(x) && (got != x || acc != Exact) {
+				t.Errorf("Float(%g) == %g (%s)", x, got, acc)
+			}
+			for _, y := range args {
+				yy.SetFloat64(y)
+				got := xx.Cmp(yy)
+				want := Undef
+				switch {
+				case x < y:
+					want = Below
+				case x == y:
+					want = Exact
+				case x > y:
+					want = Above
+				}
+				if got != want {
+					t.Errorf("(%g).Cmp(%g) = %s; want %s", x, y, got, want)
+				}
+			}
+		}
+	}
 }

@@ -7,11 +7,11 @@ package pprof_test
 import (
 	"bytes"
 	"internal/trace"
+	"io"
 	"net"
 	"os"
 	"runtime"
 	. "runtime/pprof"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -73,6 +73,20 @@ func TestTrace(t *testing.T) {
 	}
 }
 
+func parseTrace(r io.Reader) ([]*trace.Event, map[uint64]*trace.GDesc, error) {
+	events, err := trace.Parse(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	gs := trace.GoroutineStats(events)
+	for goid := range gs {
+		// We don't do any particular checks on the result at the moment.
+		// But still check that RelatedGoroutines does not crash, hang, etc.
+		_ = trace.RelatedGoroutines(events, goid)
+	}
+	return events, gs, nil
+}
+
 func TestTraceStress(t *testing.T) {
 	skipTraceTestsIfNeeded(t)
 
@@ -102,7 +116,7 @@ func TestTraceStress(t *testing.T) {
 		<-done
 		wg.Done()
 	}()
-	time.Sleep(time.Millisecond)
+	time.Sleep(time.Millisecond) // give the goroutine above time to block
 
 	buf := new(bytes.Buffer)
 	if err := StartTrace(buf); err != nil {
@@ -110,6 +124,7 @@ func TestTraceStress(t *testing.T) {
 	}
 
 	procs := runtime.GOMAXPROCS(10)
+	time.Sleep(50 * time.Millisecond) // test proc stop/start events
 
 	go func() {
 		runtime.LockOSThread()
@@ -199,7 +214,7 @@ func TestTraceStress(t *testing.T) {
 	runtime.GOMAXPROCS(procs)
 
 	StopTrace()
-	_, err = trace.Parse(buf)
+	_, _, err = parseTrace(buf)
 	if err != nil {
 		t.Fatalf("failed to parse trace: %v", err)
 	}
@@ -339,48 +354,9 @@ func TestTraceStressStartStop(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 		StopTrace()
-		if _, err := trace.Parse(buf); err != nil {
+		if _, _, err := parseTrace(buf); err != nil {
 			t.Fatalf("failed to parse trace: %v", err)
 		}
 	}
 	<-outerDone
-}
-
-func TestTraceSymbolize(t *testing.T) {
-	skipTraceTestsIfNeeded(t)
-	if runtime.GOOS == "nacl" {
-		t.Skip("skipping: nacl tests fail with 'failed to symbolize trace: failed to start addr2line'")
-	}
-	buf := new(bytes.Buffer)
-	if err := StartTrace(buf); err != nil {
-		t.Fatalf("failed to start tracing: %v", err)
-	}
-	runtime.GC()
-	StopTrace()
-	events, err := trace.Parse(buf)
-	if err != nil {
-		t.Fatalf("failed to parse trace: %v", err)
-	}
-	err = trace.Symbolize(events, os.Args[0])
-	if err != nil {
-		t.Fatalf("failed to symbolize trace: %v", err)
-	}
-	found := false
-eventLoop:
-	for _, ev := range events {
-		if ev.Type != trace.EvGCStart {
-			continue
-		}
-		for _, f := range ev.Stk {
-			if strings.HasSuffix(f.File, "trace_test.go") &&
-				strings.HasSuffix(f.Fn, "pprof_test.TestTraceSymbolize") &&
-				f.Line == 358 {
-				found = true
-				break eventLoop
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("the trace does not contain GC event")
-	}
 }

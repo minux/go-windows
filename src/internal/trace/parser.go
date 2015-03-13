@@ -277,9 +277,10 @@ func postProcessTrace(events []*Event) error {
 		gWaiting
 	)
 	type gdesc struct {
-		state   int
-		ev      *Event
-		evStart *Event
+		state    int
+		ev       *Event
+		evStart  *Event
+		evCreate *Event
 	}
 	type pdesc struct {
 		running bool
@@ -371,7 +372,7 @@ func postProcessTrace(events []*Event) error {
 			if _, ok := gs[ev.Args[0]]; ok {
 				return fmt.Errorf("g %v already exists (offset %v, time %v)", ev.Args[0], ev.Off, ev.Ts)
 			}
-			gs[ev.Args[0]] = gdesc{state: gRunnable, ev: ev}
+			gs[ev.Args[0]] = gdesc{state: gRunnable, ev: ev, evCreate: ev}
 		case EvGoStart:
 			if g.state != gRunnable {
 				return fmt.Errorf("g %v is not runnable before start (offset %v, time %v)", ev.G, ev.Off, ev.Ts)
@@ -382,11 +383,13 @@ func postProcessTrace(events []*Event) error {
 			g.state = gRunning
 			g.evStart = ev
 			p.g = ev.G
+			if g.evCreate != nil {
+				// +1 because symblizer expects return pc.
+				ev.Stk = []*Frame{&Frame{PC: g.evCreate.Args[1] + 1}}
+				g.evCreate = nil
+			}
+
 			if g.ev != nil {
-				if g.ev.Type == EvGoCreate {
-					// +1 because symblizer expects return pc.
-					ev.Stk = []*Frame{&Frame{PC: g.ev.Args[1] + 1}}
-				}
 				g.ev.Link = ev
 				g.ev = nil
 			}
@@ -584,7 +587,7 @@ const (
 	EvFrequency      = 2  // contains tracer timer frequency [frequency (ticks per second)]
 	EvStack          = 3  // stack [stack id, number of PCs, array of PCs]
 	EvGomaxprocs     = 4  // current value of GOMAXPROCS [timestamp, GOMAXPROCS, stack id]
-	EvProcStart      = 5  // start of P [timestamp]
+	EvProcStart      = 5  // start of P [timestamp, thread id]
 	EvProcStop       = 6  // stop of P [timestamp]
 	EvGCStart        = 7  // GC start [timestamp, stack id]
 	EvGCDone         = 8  // GC done [timestamp]
@@ -609,7 +612,7 @@ const (
 	EvGoBlockNet     = 27 // goroutine blocks on network [timestamp, stack]
 	EvGoSysCall      = 28 // syscall enter [timestamp, stack]
 	EvGoSysExit      = 29 // syscall exit [timestamp, goroutine id]
-	EvGoSysBlock     = 30 // syscall blocks [timestamp, stack]
+	EvGoSysBlock     = 30 // syscall blocks [timestamp]
 	EvGoWaiting      = 31 // denotes that goroutine is blocked when tracing starts [goroutine id]
 	EvGoInSyscall    = 32 // denotes that goroutine is in syscall when tracing starts [goroutine id]
 	EvHeapAlloc      = 33 // memstats.heap_alloc change [timestamp, heap_alloc]
@@ -628,7 +631,7 @@ var EventDescriptions = [EvCount]struct {
 	EvFrequency:      {"Frequency", false, []string{"freq"}},
 	EvStack:          {"Stack", false, []string{"id", "siz"}},
 	EvGomaxprocs:     {"Gomaxprocs", true, []string{"procs"}},
-	EvProcStart:      {"ProcStart", false, []string{}},
+	EvProcStart:      {"ProcStart", false, []string{"thread"}},
 	EvProcStop:       {"ProcStop", false, []string{}},
 	EvGCStart:        {"GCStart", true, []string{}},
 	EvGCDone:         {"GCDone", false, []string{}},
@@ -653,7 +656,7 @@ var EventDescriptions = [EvCount]struct {
 	EvGoBlockNet:     {"GoBlockNet", true, []string{}},
 	EvGoSysCall:      {"GoSysCall", true, []string{}},
 	EvGoSysExit:      {"GoSysExit", false, []string{"g"}},
-	EvGoSysBlock:     {"GoSysBlock", true, []string{}},
+	EvGoSysBlock:     {"GoSysBlock", false, []string{}},
 	EvGoWaiting:      {"GoWaiting", false, []string{"g"}},
 	EvGoInSyscall:    {"GoInSyscall", false, []string{"g"}},
 	EvHeapAlloc:      {"HeapAlloc", false, []string{"mem"}},

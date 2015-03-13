@@ -7,12 +7,14 @@ Darwin/ARM, a.k.a iOS. (https://golang.org/cl/2118, 2119, 3273, 2121, 2122, ...,
 
 API additions and behavior changes:
 
+archive/zip: add WriterAt function (https://golang.org/cl/7445)
 bufio: add Reader.Discard (https://golang.org/cl/2260)
 crypto/cipher: clarify what will happen if len(src) != len(dst) for the Stream interface. (https://golang.org/cl/1754)
 crypto/elliptic: add Name field to CurveParams struct (https://golang.org/cl/2133)
 crypto/tls: change default minimum version to TLS 1.0. (https://golang.org/cl/1791)
 crypto/x509: wildcards are now only accepted as the first label (https://golang.org/cl/5691)
 encoding/base64: add unpadded encodings (https://golang.org/cl/1511)
+flag: new nicer format for PrintDefaults (https://go-review.googlesource.com/7330)
 go/ast: add Implicit field to ast.EmptyStmt; changed meaning of ast.EmptyStmt.Semicolon position (https://golang.org/cl/5720)
 log: add SetOutput functions (https://golang.org/cl/2686, https://golang.org/cl/3023)
 net/http: support for setting trailers from a server Handler (https://golang.org/cl/2157)
@@ -25,6 +27,7 @@ testing/quick: support generation of arrays (https://golang.org/cl/3865)
 
 Tools:
 
+cmd/go, go/build: add ${SRCDIR} variable expansion to cgo lines (https://golang.org/cl/1756)
 cmd/go: std wildcard now excludes commands in main repo (https://golang.org/cl/5550)
 cmd/go: .swig/.swigcxx files now require SWIG 3.0.6 or later
 cmd/vet: better validation of struct tags (https://golang.org/cl/2685)
