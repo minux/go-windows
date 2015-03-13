@@ -519,9 +519,6 @@ func initdynimport() *Dll {
 			m.argsize *= Thearch.Ptrsize
 			s.Extname = s.Extname[:i]
 		}
-		if m.argsize < 0 {
-			Diag("undecorated stdcall import not allowed: %s", s.Extname)
-		}
 
 		m.s = s
 		m.next = d.ms
