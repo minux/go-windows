@@ -866,6 +866,9 @@ func peemitreloc(text, data *IMAGE_SECTION_HEADER) {
 	Cseek(cpos)
 	if n > 0x10000 {
 		n = 0x10000
+		text.Characteristics |= IMAGE_SCN_LNK_NRELOC_OVFL
+	} else {
+		text.PointerToRelocations += 10 // skip the extend reloc entry
 	}
 	text.NumberOfRelocations = uint16(n - 1)
 
@@ -886,6 +889,9 @@ func peemitreloc(text, data *IMAGE_SECTION_HEADER) {
 	Cseek(cpos)
 	if n > 0x10000 {
 		n = 0x10000
+		data.Characteristics |= IMAGE_SCN_LNK_NRELOC_OVFL
+	} else {
+		data.PointerToRelocations += 10 // skip the extend reloc entry
 	}
 	data.NumberOfRelocations = uint16(n - 1)
 }
@@ -1101,7 +1107,7 @@ func Asmbpe() {
 	}
 
 	t := addpesection(".text", int(Segtext.Length), int(Segtext.Length))
-	t.Characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ | IMAGE_SCN_LNK_NRELOC_OVFL
+	t.Characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
 	chksectseg(t, &Segtext)
 	textsect = pensect
 
@@ -1113,7 +1119,7 @@ func Asmbpe() {
 		datasect = pensect
 	} else {
 		d = addpesection(".data", int(Segdata.Filelen), int(Segdata.Filelen))
-		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_LNK_NRELOC_OVFL | IMAGE_SCN_ALIGN_32BYTES
+		d.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_ALIGN_32BYTES
 		chksectseg(d, &Segdata)
 		datasect = pensect
 
