@@ -337,14 +337,14 @@ func machoreloc1(r *ld.Reloc, sectoff int64) int {
 	return 0
 }
 
-func pereloc1(r *ld.Reloc, sectoff int64) int {
+func pereloc1(r *ld.Reloc, sectoff int64) bool {
 	var v uint32
 
 	rs := r.Xsym
 
 	if rs.Dynid < 0 {
 		ld.Diag("reloc %d to non-coff symbol %s type=%d", r.Type, rs.Name, rs.Type)
-		return -1
+		return false
 	}
 
 	ld.Thearch.Lput(uint32(sectoff))
@@ -352,7 +352,7 @@ func pereloc1(r *ld.Reloc, sectoff int64) int {
 
 	switch r.Type {
 	default:
-		return -1
+		return false
 
 	case ld.R_ADDR:
 		v = ld.IMAGE_REL_I386_DIR32
@@ -364,7 +364,7 @@ func pereloc1(r *ld.Reloc, sectoff int64) int {
 
 	ld.Thearch.Wput(uint16(v))
 
-	return 0
+	return true
 }
 
 func archreloc(r *ld.Reloc, s *ld.LSym, val *int64) int {
