@@ -532,6 +532,7 @@ func initdynimport() *Dll {
 				m.s.Type = SDATA
 				Symgrow(Ctxt, m.s, int64(Thearch.Ptrsize))
 				dynName := m.s.Extname
+				// only windows/386 requires stdcall decoration
 				if Thearch.Thechar == '8' && m.argsize >= 0 {
 					dynName += fmt.Sprintf("@%d", m.argsize)
 				}
@@ -955,6 +956,7 @@ func addpesym(s *LSym, name string, type_ int, addr int64, size int64, ver int, 
 	}
 
 	if coffsym != nil {
+		// only windows/386 requires underscore prefix on external symbols
 		if Thearch.Thechar == '8' && Linkmode == LinkExternal && (s.Type == SHOSTOBJ || s.Cgoexport != 0) && s.Name == s.Extname {
 			s.Name = "_" + s.Name
 		}
